@@ -1,6 +1,8 @@
-# Bulk RNA-seq poster portfolio
+# Bulk RNA-seq analysis portfolio
 
-This poster demonstrates my work on a bulk RNA-seq pipeline, from read quality control to expression analysis, gene-set analysis and scientific reporting.
+This repository demonstrates my work on a bulk RNA-seq pipeline, from read quality control to expression analysis, gene-set analysis and scientific reporting.
+
+[Browse the full pipeline scripts and setup notes](scripts/README.md): stages 01–15, supplementary pairing checks and a separately labelled reviewed alignment revision. The scripts use generic group names and local input settings, with personal details and embedded study findings removed. They are publication adaptations and have not been rerun on data.
 
 These are portfolio copies of my original graphs. Chart shapes remain visible; study labels, gene and pathway names, numerical findings and biological conclusions are deliberately withheld. Blurred placeholders replace the removed text. Raw reads, count matrices, per-sample measurements, result tables and editable poster sources are not included.
 

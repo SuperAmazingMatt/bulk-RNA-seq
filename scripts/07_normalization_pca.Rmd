@@ -1,0 +1,80 @@
+---
+title: "07_normalization_pca"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+```
+
+
+```{r}
+library(edgeR)
+library(dplyr)
+library(tidyverse)
+library(ggrepel)
+library(ggfortify)
+```
+
+```{r}
+counts <- read.delim("results/06_feature_counts_results/feature_counts.txt",
+                 sep = "\t",
+                 comment.char = "#",
+                 stringsAsFactors = FALSE)
+
+counts <- counts[,c("Geneid",colnames(counts)[7:ncol(counts)])]
+colnames(counts)[1]  <- "genes"
+gene_col <- "genes"
+sample_cols <- c(
+  "groupA_rep1",
+  "groupA_rep2",
+  "groupA_rep3",
+  "groupB_rep1",
+  "groupB_rep2",
+  "groupB_rep3"
+)
+colnames(counts)[-1] <- sample_cols
+counts <- counts[, c(gene_col, sample_cols)]
+```
+
+```{r}
+dge <- DGEList(counts=counts[,-1], genes=counts[,1])
+dim(dge)
+```
+
+```{r}
+#Here our criteria are that a gene must have more than 1 CPM
+keep <- rowSums(cpm(dge)>1) >= 2
+dge = dge[keep,]
+dge
+```
+
+```{r}
+##PCA check sample groups
+logCPM <- cpm(dge,log=TRUE,prior.count=1)
+sample_groups <- sub("X","",rownames(t(logCPM)))
+sample_groups <- sub("_.*","",sample_groups)
+dataPCA <- data.frame(
+  sample = rownames(t(logCPM)),  
+  grouping = sample_groups 
+)
+pca <- prcomp(t(logCPM))
+autoplot(pca, data = dataPCA, colour = 'grouping', label = FALSE) +
+  geom_text_repel(aes(label = dataPCA$sample), size = 3, max.overlaps = 20)
+```
+
+
+```{r}
+# Create a copy of our DGEList with normalization factors, which are used to account for differences in library size (total number of reads sequenced  between samples
+x <- calcNormFactors(dge)
+# check the samples
+x$samples
+```
+
+```{r}
+# Assign groups according to data sample sheet 
+experiment_groups <- factor(sub("_.*","",colnames(dge$counts)))
+x$samples$group <- experiment_groups
+# Check the sample group assignment is correct
+x$samples
+```

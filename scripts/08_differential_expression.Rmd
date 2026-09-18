@@ -1,0 +1,136 @@
+---
+title: "08_differential_expression"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+```
+
+
+```{r}
+library(edgeR)
+library(dplyr)
+library(tidyverse)
+library(ggrepel)
+```
+
+```{r}
+counts <- read.delim("results/06_feature_counts_results/feature_counts.txt",
+                 sep = "\t",
+                 comment.char = "#",
+                 stringsAsFactors = FALSE)
+
+counts <- counts[,c("Geneid",colnames(counts)[7:ncol(counts)])]
+colnames(counts)[1]  <- "genes"
+gene_col <- "genes"
+sample_cols <- c(
+  "groupA_rep1",
+  "groupA_rep2",
+  "groupA_rep3",
+  "groupB_rep1",
+  "groupB_rep2",
+  "groupB_rep3"
+)
+colnames(counts)[-1] <- sample_cols
+counts <- counts[, c(gene_col, sample_cols)]
+```
+
+```{r}
+dge <- DGEList(counts=counts[,-1], genes=counts[,1])
+dim(dge)
+```
+
+```{r}
+#Here our criteria are that a gene must have more than 1 CPM
+keep <- rowSums(cpm(dge)>1) >= 2
+dge = dge[keep,]
+dge
+```
+
+```{r}
+# Create a copy of our DGEList with normalization factors, which are used to account for differences in library size (total number of reads sequenced  between samples
+x <- calcNormFactors(dge)
+# check the samples
+x$samples
+```
+
+```{r}
+# Assign groups according to data sample sheet 
+experiment_groups <- factor(sub("_.*","",colnames(dge$counts)))
+x$samples$group <- experiment_groups
+# Check the sample group assignment is correct
+x$samples
+```
+
+```{r}
+design <- model.matrix(~0+experiment_groups)
+colnames(design) = sub("experiment_groups","", colnames(design))
+rownames(design) <- rownames(x$samples)
+# Examine the design matrix
+design
+```
+
+```{r}
+# Make contrast matrix
+# Contrast represent the groups that you are comparing in the DE analysis
+contrasts <- makeContrasts(
+    groupA_vs_groupB = groupA - groupB,
+    levels = design
+)
+contrasts
+
+```
+
+```{r}
+# Perform DE analysis for groupA_vs_groupB
+x <- estimateDisp(x, design)
+fit <- glmQLFit(x, design)
+res <- glmQLFTest(fit,contrast = contrasts[, "groupA_vs_groupB"])
+result_table <- topTags(res, n = Inf)$table
+```
+
+```{r}
+#select the DEG with |logFC| > 2 and PValue < 0.05
+filter_df <- result_table  %>% filter(abs(logFC) > 2 & PValue < 0.05)
+num_deg <- nrow(filter_df)
+num_deg
+```
+
+
+```{r}
+# Create a volcano plot showing 
+volcano_df <- result_table %>%mutate(
+    neg_log10_p = -log10(PValue),
+    group = case_when(
+      logFC > 2 & PValue < 0.05 ~ "Up",
+      logFC < -2 & PValue < 0.05 ~ "Down",
+      TRUE ~ "NS"))
+  #shhow top 10 up / down genes
+top_up <- volcano_df %>%
+    filter(group == "Up") %>%
+    arrange(desc(logFC)) %>%
+    head(10)
+top_down <- volcano_df %>%
+    filter(group == "Down") %>%
+    arrange(logFC) %>%
+    head(10)
+  label_genes <- rbind(top_up, top_down)
+  
+ggplot(volcano_df,aes(x = logFC,y = neg_log10_p,color = group)) +
+        geom_point(alpha = 0.5,size = 1) +
+        scale_color_manual(
+          values = c("Up" = "#B2182B","Down" = "#4575B4","NS" = "grey70")) +
+        geom_vline(
+          xintercept = c(-2,2),linetype = "dashed",color = "black") +
+        geom_hline(yintercept = -log10(0.05),linetype = "dashed",color = "black") +
+        geom_text_repel(
+          data = label_genes,color = "black",aes(label = genes),size = 2,max.overlaps = 20) +
+        theme_classic() +
+        labs(
+          x = "log2 Fold Change",
+          y = "-log10(P-value)",
+          color = "Expression")
+
+```
+
